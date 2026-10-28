@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#101827">
+<title>Deriv Higher/Lower Hedge Lab</title>
+<style>
+:root{color-scheme:dark;--bg:#0b1220;--panel:#121d2e;--panel2:#172438;--line:#2a3a52;--text:#edf4ff;--muted:#a7b5c9;--green:#20c997;--red:#ff667d;--amber:#ffca68;--blue:#76a9ff}
+*{box-sizing:border-box}body{margin:0;background:linear-gradient(160deg,#0b1220,#101b2b 60%,#0a1320);color:var(--text);font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+main{max-width:920px;margin:auto;padding:18px 14px 42px}.top{display:flex;align-items:center;gap:12px;margin-bottom:18px}.logo{width:48px;height:48px;border-radius:14px;display:grid;place-items:center;background:linear-gradient(135deg,#20c997,#76a9ff);color:#081322;font-weight:900;font-size:20px}.sub{color:var(--muted);font-size:13px}.pill{display:inline-block;padding:4px 9px;border-radius:99px;border:1px solid var(--line);font-size:12px;color:var(--amber);background:#2b261b}
+h1{font-size:22px;margin:0 0 3px}h2{font-size:17px;margin:0 0 12px}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.panel{background:rgba(18,29,46,.95);border:1px solid var(--line);border-radius:18px;padding:16px;margin-bottom:12px;box-shadow:0 8px 28px #0002}.field{margin:12px 0}.field label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}input,select{width:100%;min-height:44px;background:#0b1524;color:var(--text);border:1px solid #354862;border-radius:10px;padding:10px 12px;font-size:16px}input[type=checkbox]{width:18px;min-height:18px;vertical-align:middle}button{border:0;border-radius:12px;min-height:46px;padding:12px 15px;font-weight:750;font-size:15px;cursor:pointer;color:#061322;background:var(--green);width:100%}button.secondary{background:#243650;color:var(--text);border:1px solid #3b506d}button.danger{background:#522432;color:#ffe9ed;border:1px solid #7a3949}button:disabled{opacity:.45;cursor:not-allowed}.buttons{display:grid;grid-template-columns:1fr 1fr;gap:10px}.metric{background:#0b1524;border:1px solid var(--line);border-radius:12px;padding:12px}.metric .val{font-size:21px;font-weight:800;margin-top:4px}.green{color:var(--green)}.red{color:var(--red)}.amber{color:var(--amber)}.muted{color:var(--muted)}.status{white-space:pre-wrap;overflow-wrap:anywhere;background:#08111e;border:1px solid var(--line);border-radius:12px;padding:12px;min-height:80px;font-size:13px;max-height:260px;overflow:auto}.contract{display:flex;justify-content:space-between;gap:10px;align-items:center}.contract b{font-size:17px}.note{font-size:12px;color:var(--muted)}.check{display:flex;gap:8px;align-items:flex-start;color:var(--muted);font-size:13px;margin:12px 0}.barrier-value{font-size:22px;font-weight:800}.danger-text{color:var(--red)}.ok-text{color:var(--green)}.wide{grid-column:1/-1}
+@media(max-width:560px){main{padding:12px 10px 30px}.grid{grid-template-columns:1fr}.buttons{grid-template-columns:1fr}.panel{padding:14px}.top{align-items:flex-start}.wide{grid-column:auto}}
+</style>
+</head>
+<body>
+<main>
+  <header class="top">
+    <div class="logo">HL</div>
+    <div style="flex:1">
+      <h1>Higher/Lower Hedge Lab</h1>
+      <div class="sub">Deriv · Android-friendly · demo-first</div>
+    </div>
+    <span class="pill">DEMO ONLY</span>
+  </header>
+
+  <section class="panel">
+    <h2>1. Connect to Deriv demo</h2>
+    <div class="field"><label for="appId">Deriv App ID</label><input id="appId" inputmode="numeric" placeholder="Your registered Deriv App ID" autocomplete="off"></div>
+    <div class="field"><label for="token">Demo API token (trade scope required)</label><input id="token" type="password" placeholder="Paste demo token here" autocomplete="off"></div>
+    <label class="check"><input id="demoConfirm" type="checkbox"> I confirm this is a DEMO/virtual-account token. Real-account tokens are not accepted by this app.</label>
+    <div class="buttons">
+      <button id="connectBtn">Connect demo</button>
+      <button id="disconnectBtn" class="secondary" disabled>Disconnect</button>
+    </div>
+    <div class="sub" id="connectionState" style="margin-top:10px">Not connected. Token is held in memory only and is not saved to this project.</div>
+  </section>
+
+  <section class="panel">
+    <h2>2. Strategy settings</h2>
+    <div class="grid">
+      <div class="field"><label for="symbol">Market</label>
+        <select id="symbol"><option value="1HZ25V">Volatility 25 (1s) Index</option></select>
+      </div>
+      <div class="field"><label for="duration">Duration</label>
+        <select id="duration"><option value="10">10 ticks (requested default)</option><option value="5">5 ticks</option><option value="20">20 ticks</option><option value="50">50 ticks</option></select>
+      </div>
+      <div class="field"><label for="stake">Stake per contract (USD)</label><input id="stake" type="number" value="2" min="1" max="2" step="0.01" inputmode="decimal"></div>
+      <div class="field"><label for="distance">Mirrored barrier distance</label><input id="distance" type="number" value="35" min="1" max="500" step="1" inputmode="decimal"><div class="note">Relative barrier units; the API quote must validate this distance.</div></div>
+      <div class="field"><label for="maxPairs">Maximum pairs per session</label><input id="maxPairs" type="number" value="3" min="1" max="3" step="1"></div>
+      <div class="field"><label for="lossLimit">Session loss stop (USD)</label><input id="lossLimit" type="number" value="8" min="1" max="8" step="0.5"></div>
+    </div>
+    <label class="check"><input id="strongTrend" type="checkbox" checked> Strong-trend filter required (EMA direction + directional efficiency check)</label>
+    <label class="check"><input id="confirmPair" type="checkbox" checked> Require confirmation before each pair purchase</label>
+    <div class="note">The strategy requests Higher (CALL) at +distance and Lower (PUT) at −distance. Both are terminal-price contracts, not Touch/No Touch contracts. Mirrored barriers can both lose if expiry price finishes between them.</div>
+  </section>
+
+  <section class="panel">
+    <h2>3. Live market and risk status</h2>
+    <div class="grid">
+      <div class="metric"><div class="sub">Latest live tick</div><div class="val" id="spot">—</div></div>
+      <div class="metric"><div class="sub">Trend filter</div><div class="val" id="trendState">Waiting</div></div>
+      <div class="metric"><div class="sub">Session P/L</div><div class="val" id="sessionPL">$0.00</div></div>
+      <div class="metric"><div class="sub">Pairs purchased</div><div class="val" id="pairCount">0 / 3</div></div>
+    </div>
+    <div class="grid" style="margin-top:12px">
+      <div class="metric"><div class="sub">Higher barrier</div><div class="val" id="upperBarrier">+35</div></div>
+      <div class="metric"><div class="sub">Lower barrier</div><div class="val" id="lowerBarrier">−35</div></div>
+    </div>
+    <div class="note" style="margin-top:10px">Strong trend is a simple filter on recent ticks, not a prediction. Synthetic-index trends may not persist.</div>
+  </section>
+
+  <section class="panel">
+    <h2>4. Quote and purchase</h2>
+    <div class="grid">
+      <div class="metric">
+        <div class="contract"><b class="green">HIGHER</b><span class="sub">CALL</span></div>
+        <div class="sub">Ask / stake</div><div class="val" id="higherCost">—</div>
+        <div class="sub">Quoted payout</div><div class="val" id="higherPayout">—</div>
+        <div class="sub">Profit if win</div><div class="val" id="higherProfit">—</div>
+      </div>
+      <div class="metric">
+        <div class="contract"><b class="red">LOWER</b><span class="sub">PUT</span></div>
+        <div class="sub">Ask / stake</div><div class="val" id="lowerCost">—</div>
+        <div class="sub">Quoted payout</div><div class="val" id="lowerPayout">—</div>
+        <div class="sub">Profit if win</div><div class="val" id="lowerProfit">—</div>
+      </div>
+    </div>
+    <div class="metric" style="margin-top:12px"><div class="sub">Estimated combined result if one wins and the other loses</div><div class="val" id="oneWins">—</div><div class="note">Calculated from the actual quotes: winning payout minus both purchase costs. If both lose, loss is both purchase costs.</div></div>
+    <div class="buttons" style="margin-top:12px">
+      <button id="quoteBtn" disabled>Refresh live quotes</button>
+      <button id="buyBtn" disabled>Buy one pair</button>
+    </div>
+    <div class="note" style="margin-top:10px">The app sends both buy requests back-to-back after validating both quotes. The API cannot guarantee atomic execution; a partial purchase is possible and will be flagged.</div>
+  </section>
+
+  <section class="panel">
+    <h2>5. Activity log</h2>
+    <div class="status" id="log">Ready. Connect using a demo token to begin.</div>
+    <div class="buttons" style="margin-top:12px">
+      <button id="stopBtn" class="danger" disabled>Stop bot / disable purchases</button>
+      <button id="resetBtn" class="secondary">Reset session counters</button>
+    </div>
+  </section>
+  <p class="note">Risk notice: this software is experimental. It does not guarantee profits. A $2 + $2 pair can lose up to $4 if both contracts lose. Test on demo only. Do not paste API tokens into GitHub or share them with anyone.</p>
+</main>
+<script>
+(() => {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  let ws = null, reqSeq = 10, connected = false, authorized = false, stopped = true;
+  let accountCurrency = 'USD', ticks = [], tickSubId = null, pending = new Map();
+  let sessionPL = 0, pairsBought = 0, pairInProgress = false, openContracts = new Map(), subscriptions = new Map();
+  let lastQuotes = null, quoteAt = 0, sessionStarted = Date.now(), lastSpot = null;
+  const logEl = $('log');
+  function log(msg) {
+    const t = new Date().toLocaleTimeString();
+    logEl.textContent = `[${t}] ${msg}\n` + logEl.textContent;
+    logEl.textContent = logEl.textContent.slice(0, 9000);
+  }
+  function money(n) { return Number.isFinite(Number(n)) ? '$' + Number(n).toFixed(2) : '—'; }
+  function setConnection(s) { $('connectionState').textContent = s; }
+  function send(payload) {
+    if (!ws || ws.readyState !== WebSocket.OPEN) throw new Error('WebSocket is not connected.');
+    const req_id = ++reqSeq;
+    payload.req_id = req_id;
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => { pending.delete(req_id); reject(new Error('Deriv API request timed out.')); }, 10000);
+      pending.set(req_id, {resolve, reject, timer});
+      ws.send(JSON.stringify(payload));
+    });
+  }
+  function updateRiskUI() {
+    $('sessionPL').textContent = money(sessionPL);
+    $('sessionPL').className = 'val ' + (sessionPL > 0 ? 'green' : sessionPL < 0 ? 'red' : '');
+    $('pairCount').textContent = `${pairsBought} / ${Math.min(3, Number($('maxPairs').value) || 3)}`;
+    $('upperBarrier').textContent = '+' + Number($('distance').value || 35);
+    $('lowerBarrier').textContent = '−' + Number($('distance').value || 35);
+    const limit = Math.min(8, Math.max(1, Number($('lossLimit').value) || 8));
+    if (sessionPL <= -limit) { stopped = true; $('stopBtn').disabled = true; $('buyBtn').disabled = true; log('SESSION LOSS LIMIT reached. Purchases disabled.'); }
+  }
+  function getTrend() {
+    if (ticks.length < 30) return {ok:false, label:'Collecting ticks'};
+    const prices = ticks.slice(-30).map(x => x.quote);
+    const ema = (arr, period) => {
+      const k = 2 / (period + 1); let v = arr[0];
+      for (let i=1;i<arr.length;i++) v = arr[i]*k + v*(1-k);
+      return v;
+    };
+    const fast = ema(prices.slice(-12), 5), slow = ema(prices, 15);
+    const move = prices[prices.length-1] - prices[0];
+    const path = prices.slice(1).reduce((s,v,i)=>s+Math.abs(v-prices[i]),0);
+    const efficiency = path ? Math.abs(move)/path : 0;
+    const relSlope = Math.abs(fast-slow) / Math.max(Math.abs(prices[prices.length-1]),1);
+    const ok = efficiency >= 0.45 && relSlope >= 0.000002 && Math.abs(move) > 0;
+    return {ok, label: ok ? (move > 0 ? 'Strong uptrend' : 'Strong downtrend') : 'Sideways / weak', move, efficiency};
+  }
+  function refreshTrend() {
+    const t = getTrend();
+    $('trendState').textContent = t.label;
+    $('trendState').className = 'val ' + (t.ok ? 'green' : 'amber');
+    return t;
+  }
+  function displayQuote(side, q) {
+    const prefix = side === 'higher' ? 'higher' : 'lower';
+    const cost = Number(q.ask_price);
+    const payout = Number(q.payout);
+    $(prefix+'Cost').textContent = money(cost);
+    $(prefix+'Payout').textContent = money(payout);
+    $(prefix+'Profit').textContent = money(payout-cost);
+  }
+  async function getPairQuotes() {
+    if (!authorized) throw new Error('Connect a demo account first.');
+    const stake = Number($('stake').value), distance = Number($('distance').value);
+    if (!(stake > 0 && stake <= 2)) throw new Error('Stake must be greater than $0 and no more than $2 per contract.');
+    if (!(distance >= 1 && distance <= 500)) throw new Error('Barrier distance must be between 1 and 500 relative units.');
+    const common = {proposal:1, amount:stake, basis:'stake', currency:accountCurrency,
+      duration:Number($('duration').value), duration_unit:'t', underlying_symbol:$('symbol').value};
+    const [h,l] = await Promise.all([
+      send({...common, contract_type:'CALL', barrier:'+'+distance}),
+      send({...common, contract_type:'PUT', barrier:'-'+distance})
+    ]);
+    if (!h.proposal || !l.proposal) throw new Error('Deriv did not return both valid proposal quotes.');
+    const qh = h.proposal, ql = l.proposal;
+    for (const [name,q] of [['Higher',qh],['Lower',ql]]) {
+      if (!q.id || !Number.isFinite(Number(q.ask_price)) || !Number.isFinite(Number(q.payout))) throw new Error(name+' quote is incomplete; no purchase made.');
+      if (Number(q.ask_price) > stake + 0.001) throw new Error(name+' quote cost exceeds configured stake; no purchase made.');
+    }
+    lastQuotes = {higher:qh, lower:ql, stake, distance, at:Date.now()};
+    quoteAt = Date.now();
+    displayQuote('higher', qh); displayQuote('lower', ql);
+    $('oneWins').textContent = `Higher wins: ${money(Number(qh.payout)-Number(qh.ask_price)-Number(ql.ask_price))} · Lower wins: ${money(Number(ql.payout)-Number(qh.ask_price)-Number(ql.ask_price))}`;
+    log(`Fresh quotes: Higher cost ${money(qh.ask_price)}, payout ${money(qh.payout)}; Lower cost ${money(ql.ask_price)}, payout ${money(ql.payout)}.`);
+    return lastQuotes;
+  }
+  function buyEnabled() {
+    const maxPairs = Math.min(3, Math.max(1, Number($('maxPairs').value) || 3));
+    const limit = Math.min(8, Math.max(1, Number($('lossLimit').value) || 8));
+    $('buyBtn').disabled = !authorized || stopped || pairInProgress || pairsBought >= maxPairs || sessionPL <= -limit || !lastQuotes || Date.now()-quoteAt > 15000;
+  }
+  async function connect() {
+    if (connected) return;
+    const appId = $('appId').value.trim(), token = $('token').value.trim();
+    if (!/^\d+$/.test(appId)) throw new Error('Enter your numeric Deriv App ID.');
+    if (!token) throw new Error('Paste your demo API token.');
+    if (!$('demoConfirm').checked) throw new Error('Confirm you are using a demo/virtual-account token.');
+    stopped = true;
+    ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${encodeURIComponent(appId)}`);
+    setConnection('Connecting…');
+    ws.onmessage = event => {
+      let data; try { data = JSON.parse(event.data); } catch { return; }
+      if (data.req_id && pending.has(data.req_id)) {
+        const p = pending.get(data.req_id); clearTimeout(p.timer); pending.delete(data.req_id);
+        if (data.error) p.reject(new Error(data.error.message || 'Deriv API error'));
+        else p.resolve(data);
+      }
+      if (data.msg_type === 'tick' && data.tick) {
+        const tick = {quote:Number(data.tick.quote), epoch:Number(data.tick.epoch)};
+        if (Number.isFinite(tick.quote)) {
+          lastSpot = tick.quote; ticks.push(tick); if (ticks.length > 200) ticks.shift();
+          $('spot').textContent = tick.quote.toLocaleString(undefined,{maximumFractionDigits:4});
+          refreshTrend();
+        }
+      }
+      if (data.msg_type === 'proposal_open_contract' && data.proposal_open_contract) {
+        const c = data.proposal_open_contract;
+        if (c.is_sold || c.status === 'won' || c.status === 'lost' || c.status === 'sold') {
+          if (c.contract_id && openContracts.has(c.contract_id) && !openContracts.get(c.contract_id).settled) {
+            const item = openContracts.get(c.contract_id); item.settled = true;
+            const profit = Number(c.profit || 0);
+            sessionPL += profit;
+            log(`Contract ${c.contract_id} settled (${c.status || 'closed'}): P/L ${money(profit)}.`);
+            updateRiskUI();
+            const anyOpen = [...openContracts.values()].some(x => !x.settled);
+            if (!anyOpen) { pairInProgress = false; buyEnabled(); }
+          }
+        }
+      }
+      if (data.error) log('API message: '+data.error.message);
+    };
+    ws.onerror = () => { log('WebSocket error. Check connection and App ID.'); };
+    ws.onclose = () => {
+      connected = false; authorized = false; stopped = true;
+      setConnection('Disconnected. Purchases disabled.');
+      $('connectBtn').disabled = false; $('disconnectBtn').disabled = true;
+      $('quoteBtn').disabled = true; $('buyBtn').disabled = true; $('stopBtn').disabled = true;
+      log('Connection closed. Bot stopped.');
+    };
+    await new Promise((resolve,reject) => {
+      const timer = setTimeout(()=>reject(new Error('Connection timed out.')),10000);
+      ws.addEventListener('open',()=>{clearTimeout(timer);resolve();},{once:true});
+      ws.addEventListener('error',()=>{clearTimeout(timer);reject(new Error('Could not connect to Deriv WebSocket.'));},{once:true});
+    });
+    connected = true;
+    const auth = await send({authorize:token});
+    const a = auth.authorize || {};
+    if (!(a.is_virtual === 1 || String(a.loginid || '').startsWith('VRTC'))) {
+      ws.close(); throw new Error('Safety block: Deriv did not identify this as a virtual/demo account. Use a demo token only.');
+    }
+    authorized = true; accountCurrency = a.currency || 'USD';
+    if (accountCurrency !== 'USD') log(`Account currency is ${accountCurrency}; stake values use account currency, not necessarily USD.`);
+    setConnection(`Connected to virtual account ${a.loginid || ''} · currency ${accountCurrency}. Demo only.`);
+    $('connectBtn').disabled = true; $('disconnectBtn').disabled = false;
+    $('quoteBtn').disabled = false; $('stopBtn').disabled = false;
+    stopped = false;
+    const tickResponse = await send({ticks:$('symbol').value, subscribe:1});
+    tickSubId = tickResponse.subscription?.id || null;
+    log('Authorized demo account. Live tick stream requested.');
+    await getPairQuotes();
+    buyEnabled();
+  }
+  async function buyPair() {
+    if (stopped || !authorized) throw new Error('Bot is stopped or not authorized.');
+    if (pairInProgress) throw new Error('A pair is already open.');
+    if (!lastQuotes || Date.now()-quoteAt > 15000) await getPairQuotes();
+    const trend = refreshTrend();
+    if ($('strongTrend').checked && !trend.ok) throw new Error('Strong-trend filter blocked entry: '+trend.label+'.');
+    const maxPairs = Math.min(3, Math.max(1, Number($('maxPairs').value) || 3));
+    const limit = Math.min(8, Math.max(1, Number($('lossLimit').value) || 8));
+    if (pairsBought >= maxPairs) throw new Error('Session pair limit reached.');
+    if (sessionPL <= -limit) throw new Error('Session loss limit reached.');
+    const q = lastQuotes;
+    if (Date.now()-q.at > 15000) throw new Error('Quotes are stale. Refresh before buying.');
+    if ($('confirmPair').checked && !confirm(`DEMO purchase confirmation\nHigher barrier +${q.distance}, cost ${money(q.higher.ask_price)}, payout ${money(q.higher.payout)}\nLower barrier -${q.distance}, cost ${money(q.lower.ask_price)}, payout ${money(q.lower.payout)}\nMaximum planned pair cost: ${money(Number(q.higher.ask_price)+Number(q.lower.ask_price))}\nBuy both now?`)) return;
+    pairInProgress = true; pairsBought++; updateRiskUI(); buyEnabled();
+    log('Sending both demo buy requests back-to-back. Execution is not atomic.');
+    const results = await Promise.allSettled([
+      send({buy:q.higher.id, price:Number(q.higher.ask_price)}),
+      send({buy:q.lower.id, price:Number(q.lower.ask_price)})
+    ]);
+    let successes = 0;
+    results.forEach((r,i) => {
+      const side = i===0?'Higher':'Lower';
+      if (r.status === 'fulfilled' && r.value.buy) {
+        successes++;
+        const c = r.value.buy;
+        openContracts.set(c.contract_id,{side,settled:false});
+        log(`${side} BUY accepted. Contract ID ${c.contract_id}; buy price ${money(c.buy_price)}.`);
+        send({proposal_open_contract:1, contract_id:c.contract_id, subscribe:1}).catch(e=>log(`Could not subscribe to ${side} contract status: ${e.message}`));
+      } else {
+        log(`CRITICAL: ${side} BUY failed: ${r.status==='rejected'?r.reason.message:'No buy result'}.`);
+      }
+    });
+    if (successes !== 2) {
+      stopped = true;
+      log(`PARTIAL PAIR: ${successes}/2 purchases succeeded. Bot stopped to prevent new exposure. Check Deriv Positions manually.`);
+      if (successes === 0) pairInProgress = false;
+    } else {
+      log('Both contracts accepted. Waiting for settlement before another pair.');
+    }
+    lastQuotes = null; buyEnabled();
+  }
+  function disconnect() {
+    stopped = true;
+    if (ws && ws.readyState === WebSocket.OPEN) { try { ws.close(); } catch {} }
+    authorized = false; connected = false; pairInProgress = false;
+    $('token').value = ''; lastQuotes = null;
+    setConnection('Disconnected. Token cleared from the form.');
+    $('connectBtn').disabled = false; $('disconnectBtn').disabled = true;
+    $('quoteBtn').disabled = true; $('buyBtn').disabled = true; $('stopBtn').disabled = true;
+  }
+  function safeRun(fn) { return async () => { try { await fn(); } catch(e) { log('BLOCKED / ERROR: '+e.message); buyEnabled(); } }; }
+  $('connectBtn').addEventListener('click', safeRun(connect));
+  $('disconnectBtn').addEventListener('click', disconnect);
+  $('quoteBtn').addEventListener('click', safeRun(async()=>{await getPairQuotes();buyEnabled();}));
+  $('buyBtn').addEventListener('click', safeRun(buyPair));
+  $('stopBtn').addEventListener('click',()=>{stopped=true;$('buyBtn').disabled=true;$('stopBtn').disabled=true;log('Bot stopped by user. Existing contracts remain open and can still settle.');});
+  $('resetBtn').addEventListener('click',()=>{
+    if(pairInProgress || [...openContracts.values()].some(x=>!x.settled)) { log('Reset blocked while contracts are still open.'); return; }
+    sessionPL=0;pairsBought=0;sessionStarted=Date.now();updateRiskUI();log('Session counters reset. This does not change Deriv account balance/history.');
+  });
+  $('distance').addEventListener('input',()=>{lastQuotes=null;updateRiskUI();buyEnabled();});
+  $('stake').addEventListener('input',()=>{lastQuotes=null;buyEnabled();});
+  $('duration').addEventListener('change',()=>{lastQuotes=null;buyEnabled();});
+  $('symbol').addEventListener('change',()=>{lastQuotes=null;buyEnabled();});
+  $('maxPairs').addEventListener('input',updateRiskUI);
+  $('lossLimit').addEventListener('input',updateRiskUI);
+  updateRiskUI(); buyEnabled();
+})();
+</script>
+</body>
+</html>
